@@ -434,7 +434,7 @@ printOutputs()
 
 ### Flower 中顯示各 worker 處理的 messages 數量:
 
-![各 neuron 的活動次數](.\jpgs\flower2.jpg "各 neuron 的活動次數")
+![各 neuron 的活動次數](https://github.com/Wei1234c/IOTasBrain/blob/master/celery_projects/jpgs/flower2.jpg "各 neuron 的活動次數")
 
 ## Summary
 
