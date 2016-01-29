@@ -13,7 +13,7 @@ BROKER_URL = 'redis://192.168.0.114:6379/0'
 CELERY_RESULT_BACKEND = 'redis://192.168.0.114:6379/1'
 
 #________________________________CELERY_IMPORTS________________________________
-CELERY_IMPORTS = ('IoT.tasks',)
+CELERY_IMPORTS = ('IoT.neuron',)
 
 #________________________________CELERY_QUEUES_________________________________
 CELERY_QUEUES = (

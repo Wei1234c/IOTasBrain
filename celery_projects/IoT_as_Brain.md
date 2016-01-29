@@ -173,7 +173,41 @@ $
 ```
 
 #### 共有 6 個 neurons
-neuron x, y, z, h1, h2 都被佈署到 Swarm node "node01' 上面，只有 h3 被安排在 Swarm manager 這台 "master01" machine 上。
+neuron x, y, z, h1, h2 都被佈署到 Swarm node "node01' 上面，
+
+
+```python
+HypriotOS: pi@rpi201 in ~
+$ docker ps
+CONTAINER ID        IMAGE                   COMMAND                  CREATED              STATUS              PORTS               NAMES
+6c0d6a8bb590        wei1234c/celery_armv7   "/bin/sh -c 'cd /cele"   About a minute ago   Up About a minute   5555/tcp            neuron_z
+a6679a9bb651        wei1234c/celery_armv7   "/bin/sh -c 'cd /cele"   About a minute ago   Up About a minute   5555/tcp            neuron_h2
+1b5180f0284c        wei1234c/celery_armv7   "/bin/sh -c 'cd /cele"   About a minute ago   Up About a minute   5555/tcp            neuron_h1
+8608740a5a86        wei1234c/celery_armv7   "/bin/sh -c 'cd /cele"   About a minute ago   Up About a minute   5555/tcp            neuron_y
+684e3d7b84bf        wei1234c/celery_armv7   "/bin/sh -c 'cd /cele"   2 minutes ago        Up 2 minutes        5555/tcp            neuron_x
+ef0c519ae7da        hypriot/rpi-swarm       "/swarm join --advert"   4 minutes ago        Up 4 minutes        2375/tcp            swarm-agent
+HypriotOS: pi@rpi201 in ~
+$ 
+```
+
+只有 h3 被安排在 Swarm manager 這台 "master01" machine 上。
+
+
+```python
+HypriotOS: pi@rpi202 in /data/celery_projects
+$ docker ps
+CONTAINER ID        IMAGE                      COMMAND                  CREATED              STATUS              PORTS                                                                    NAMES
+3a59323ae8f6        wei1234c/celery_armv7      "/bin/sh -c 'cd /cele"   35 seconds ago       Up 32 seconds       5555/tcp                                                                 neuron_h3
+e136f3f443a4        wei1234c/celery_armv7      "/bin/sh -c 'cd /cele"   About a minute ago   Up About a minute   0.0.0.0:5555->5555/tcp                                                   flower
+cb706da89689        hypriot/rpi-redis          "/entrypoint.sh redis"   About a minute ago   Up About a minute   0.0.0.0:6379->6379/tcp                                                   redis
+966928d0a37c        hypriot/rpi-swarm          "/swarm join --advert"   3 minutes ago        Up 3 minutes        2375/tcp                                                                 swarm-agent
+b01b05cbe323        hypriot/rpi-swarm          "/swarm manage --tlsv"   4 minutes ago        Up 4 minutes        2375/tcp, 0.0.0.0:3376->3376/tcp                                         swarm-agent-master
+ab78ab3e5476        nimblestratus/rpi-consul   "/bin/start -server -"   4 minutes ago        Up 4 minutes        53/udp, 8300-8302/tcp, 8400/tcp, 0.0.0.0:8500->8500/tcp, 8301-8302/udp   consul
+HypriotOS: pi@rpi202 in /data/celery_projects
+$ 
+```
+
+#### 從 Swarm Manager 的視角 綜觀全局
 
 
 ```python
@@ -196,28 +230,54 @@ HypriotOS: pi@rpi202 in /data/celery_projects
 $
 ```
 
+---
+
+### <font color="red">開始下指令config網路</font>
+
 
 ```python
-from IoT.tasks import * 
+from IoT.neuron import * 
 from time import sleep
+import pandas as pd
+from pandas import DataFrame
+# import itertools
+
+pd.options.display.max_colwidth = 400
+REFRACTORY_PERIOD = 0.1
 ```
 
 
 ```python
-def printConfig(neuron_id):
-    print('{0} config:\n {1}'.format(neuron_id, getConfig.apply_async(routing_key = neuron_id).get()))
-          
-def printOutput(neuron_id):
-    print('{0} output: {1}'.format(neuron_id, getOutput.apply_async(routing_key = neuron_id).get()))
+neurons = ['neuron_x', 'neuron_y', 'neuron_h1', 'neuron_h2', 'neuron_h3', 'neuron_z'] 
+
+def printConfig(neuron):
+    print('{0} config:\n {1}'.format(neuron, getConfig.apply_async(routing_key = neuron).get()))
+
+def emptyLogs():
+    for neuron in neurons:
+        emptyLog.apply_async(routing_key = neuron)
+
+def mergeLogs():
+    logs = []
     
-def printOutputs():
-    # 印出各 neuron 的 output
-    printOutput('neuron_x')
-    printOutput('neuron_y')
-    printOutput('neuron_h1')
-    printOutput('neuron_h2')
-    printOutput('neuron_h3')
-    printOutput('neuron_z')
+    for neuron in neurons:
+        currentLog = getLog.apply_async(routing_key = neuron).get()
+        logs += currentLog
+
+#     logs = group([getLog.subtask(routing_key = neuron) for neuron in neurons]).apply_async().get()
+            
+    df = DataFrame(list(logs), columns = ['Time', 'neuron', 'content']) 
+    df.set_index('Time', inplace = True)
+    df.sort_index(inplace = True)
+    
+    return df
+```
+
+### 清空 log files
+
+
+```python
+emptyLogs()
 ```
 
 ### 設定 connections
@@ -242,7 +302,7 @@ addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h3')
 
 
 
-    <AsyncResult: 962d5d9a-8d1c-4175-9b41-0b3d88a68fbc>
+    <AsyncResult: e9748069-5fc3-4c5c-83f8-89a08fb09d24>
 
 
 
@@ -273,7 +333,7 @@ setWeight.apply_async(['neuron_h3', 1], routing_key = 'neuron_z')
 
 
 
-    <AsyncResult: 676b47f3-da9b-4e82-930c-52327d7e40e3>
+    <AsyncResult: c87a87d8-7552-4dcd-a5b8-c0a018d6af33>
 
 
 
@@ -297,7 +357,7 @@ setThreshold.apply_async([0.9], routing_key = 'neuron_z')
 
 
 
-    <AsyncResult: 83135759-21de-4804-bb93-838fe82db236>
+    <AsyncResult: a2576999-63cb-44dc-9150-8f9f3ca5c2ac>
 
 
 
@@ -305,57 +365,8 @@ setThreshold.apply_async([0.9], routing_key = 'neuron_z')
 
 
 ```python
-printConfig('neuron_x')
+# for neuron in neurons: printConfig(neuron)
 ```
-
-    neuron_x config:
-     {'output': {'lasting': datetime.timedelta(0, 5), 'evaluate_time': datetime.datetime(2016, 1, 28, 21, 6, 21, 334197), 'value': 0}, 'connections': {'neuron_h2', 'neuron_h1'}, 'threshold': 0.9, 'weights': {'sensor_x_2': 1, 'sensor_x_1': 1}}
-    
-
-
-```python
-printConfig('neuron_y')
-```
-
-    neuron_y config:
-     {'output': {'lasting': datetime.timedelta(0, 5), 'evaluate_time': datetime.datetime(2016, 1, 28, 21, 6, 21, 394303), 'value': 0}, 'connections': {'neuron_h2', 'neuron_h3'}, 'threshold': 0.9, 'weights': {'sensor_y_1': 1, 'sensor_y_2': 1}}
-    
-
-
-```python
-printConfig('neuron_h1')
-```
-
-    neuron_h1 config:
-     {'output': {'lasting': datetime.timedelta(0, 5), 'evaluate_time': datetime.datetime(2016, 1, 28, 21, 6, 21, 488497), 'value': 0}, 'connections': {'neuron_z'}, 'threshold': 0.9, 'weights': {'neuron_x': 1}}
-    
-
-
-```python
-printConfig('neuron_h2')
-```
-
-    neuron_h2 config:
-     {'output': {'lasting': datetime.timedelta(0, 5), 'evaluate_time': datetime.datetime(2016, 1, 28, 21, 6, 21, 508248), 'value': 0}, 'connections': {'neuron_z'}, 'threshold': 1.9, 'weights': {'neuron_x': 1, 'neuron_y': 1}}
-    
-
-
-```python
-printConfig('neuron_h3')
-```
-
-    neuron_h3 config:
-     {'output': {'lasting': datetime.timedelta(0, 5), 'evaluate_time': datetime.datetime(2016, 1, 28, 21, 6, 21, 532751), 'value': 0}, 'connections': {'neuron_z'}, 'threshold': 0.9, 'weights': {'neuron_y': 1}}
-    
-
-
-```python
-printConfig('neuron_z')
-```
-
-    neuron_z config:
-     {'output': {'lasting': datetime.timedelta(0, 5), 'evaluate_time': datetime.datetime(2016, 1, 28, 21, 6, 22, 68767), 'value': 0}, 'threshold': 0.9, 'weights': {'neuron_h2': -2, 'neuron_h1': 1, 'neuron_h3': 1}}
-    
 
 ### 模擬 sensor input，然後查看各 neurons 的 output 狀態
 一個 neuron fire 之後，如果沒有持續的輸入可維持 fire 的狀態，則過 5 秒鐘之 neuron 的 output 一定為 0
@@ -363,78 +374,278 @@ printConfig('neuron_z')
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-sleep(5)  # 停 5秒，等電位歸零
-# setOutput.apply_async(routing_key = 'neuron_x') # force neuron x output 0.
-# setOutput.apply_async(routing_key = 'neuron_y') # force neuron y output 0.
-
-printOutputs()
+emptyLogs()
+sleep(REFRACTORY_PERIOD)  # 等電位歸零 
+mergeLogs()
 ```
 
-    neuron_x output: 0
-    neuron_y output: 0
-    neuron_h1 output: 0
-    neuron_h2 output: 0
-    neuron_h3 output: 0
-    neuron_z output: 0
-    
+
+
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>neuron</th>
+      <th>content</th>
+    </tr>
+    <tr>
+      <th>Time</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  </tbody>
+</table>
+</div>
+
+
 
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-sleep(5)  # 停 5秒，等電位歸零
-setOutput.apply_async(routing_key = 'neuron_x') # force neuron x output 1 and fire.
-# setOutput.apply_async(routing_key = 'neuron_y') # force neuron y output 0.
-
-printOutputs()
+emptyLogs()
+sleep(REFRACTORY_PERIOD)  # 等電位歸零
+fire.apply_async(routing_key = 'neuron_x') # force neuron x output 1 and fire.
+mergeLogs()
 ```
 
-    neuron_x output: 1
-    neuron_y output: 0
-    neuron_h1 output: 1
-    neuron_h2 output: 0
-    neuron_h3 output: 0
-    neuron_z output: 1
-    
+
+
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>neuron</th>
+      <th>content</th>
+    </tr>
+    <tr>
+      <th>Time</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>2016-01-31 01:01:54.794059</th>
+      <td>neuron_x</td>
+      <td>neuron_x fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 01:01:54.864476</th>
+      <td>neuron_h1</td>
+      <td>neuron_x is kicking neuron_h1.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 01:01:54.873239</th>
+      <td>neuron_h2</td>
+      <td>neuron_x is kicking neuron_h2.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 01:01:54.880962</th>
+      <td>neuron_h1</td>
+      <td>neuron_h1 fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 01:01:54.954445</th>
+      <td>neuron_z</td>
+      <td>neuron_h1 is kicking neuron_z.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 01:01:54.981415</th>
+      <td>neuron_z</td>
+      <td>neuron_z fired.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
 
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-sleep(5)  # 停 5秒，等電位歸零
-# setOutput.apply_async(routing_key = 'neuron_x') # force neuron x output 0.
-setOutput.apply_async(routing_key = 'neuron_y') # force neuron y output 1 and fire.
-
-printOutputs()
+emptyLogs()
+sleep(REFRACTORY_PERIOD)  # 等電位歸零
+fire.apply_async(routing_key = 'neuron_y') # force neuron y output 1 and fire.
+mergeLogs()
 ```
 
-    neuron_x output: 0
-    neuron_y output: 1
-    neuron_h1 output: 0
-    neuron_h2 output: 0
-    neuron_h3 output: 1
-    neuron_z output: 1
-    
+
+
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>neuron</th>
+      <th>content</th>
+    </tr>
+    <tr>
+      <th>Time</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>2016-01-31 00:56:54.163785</th>
+      <td>neuron_y</td>
+      <td>neuron_y fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:56:54.215860</th>
+      <td>neuron_h3</td>
+      <td>neuron_y is kicking neuron_h3.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:56:54.255786</th>
+      <td>neuron_h2</td>
+      <td>neuron_y is kicking neuron_h2.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:56:54.259556</th>
+      <td>neuron_h3</td>
+      <td>neuron_h3 fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:56:54.321133</th>
+      <td>neuron_z</td>
+      <td>neuron_h3 is kicking neuron_z.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:56:54.339361</th>
+      <td>neuron_z</td>
+      <td>neuron_z fired.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
 
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-sleep(5)  # 停 5秒，等電位歸零
-setOutput.apply_async(routing_key = 'neuron_x') # force neuron x output 1 and fire.
-setOutput.apply_async(routing_key = 'neuron_y') # force neuron y output 1 and fire.
-
-printOutputs()
+emptyLogs()
+sleep(REFRACTORY_PERIOD)  # 等電位歸零
+fire.apply_async(routing_key = 'neuron_x') # force neuron x output 1 and fire.
+fire.apply_async(routing_key = 'neuron_y') # force neuron y output 1 and fire.
+mergeLogs()
 ```
 
-    neuron_x output: 1
-    neuron_y output: 1
-    neuron_h1 output: 1
-    neuron_h2 output: 1
-    neuron_h3 output: 1
-    neuron_z output: 0
-    
 
-### Flower 中顯示各 worker 處理的 messages 數量:
 
-![各 neuron 的活動次數](https://github.com/Wei1234c/IOTasBrain/blob/master/celery_projects/jpgs/flower2.jpg "各 neuron 的活動次數")
+
+<div>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>neuron</th>
+      <th>content</th>
+    </tr>
+    <tr>
+      <th>Time</th>
+      <th></th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>2016-01-31 00:57:00.022305</th>
+      <td>neuron_x</td>
+      <td>neuron_x fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.067683</th>
+      <td>neuron_y</td>
+      <td>neuron_y fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.084430</th>
+      <td>neuron_h1</td>
+      <td>neuron_x is kicking neuron_h1.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.106458</th>
+      <td>neuron_h1</td>
+      <td>neuron_h1 fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.110553</th>
+      <td>neuron_h2</td>
+      <td>neuron_x is kicking neuron_h2.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.157432</th>
+      <td>neuron_h3</td>
+      <td>neuron_y is kicking neuron_h3.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.192154</th>
+      <td>neuron_h3</td>
+      <td>neuron_h3 fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.219668</th>
+      <td>neuron_z</td>
+      <td>neuron_h1 is kicking neuron_z.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.238060</th>
+      <td>neuron_h2</td>
+      <td>neuron_y is kicking neuron_h2.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.266169</th>
+      <td>neuron_z</td>
+      <td>neuron_z fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.277638</th>
+      <td>neuron_h2</td>
+      <td>neuron_h2 fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.364021</th>
+      <td>neuron_z</td>
+      <td>neuron_h3 is kicking neuron_z.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.385661</th>
+      <td>neuron_z</td>
+      <td>neuron_z fired.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.411075</th>
+      <td>neuron_z</td>
+      <td>neuron_h2 is kicking neuron_z.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 00:57:00.417874</th>
+      <td>neuron_z</td>
+      <td>neuron_z is still in refractory_period.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+
+
+
+```python
+# for neuron in reversed(neurons): printConfig(neuron)
+```
+
+### [Flower](http://192.168.0.114:5555) 中顯示各 worker 處理的 messages 數量:
+
+![各 neuron 的活動次數](https://github.com/Wei1234c/IOTasBrain/raw/master/celery_projects/jpgs/flower2.jpg "各 neuron 的活動次數")
 
 ## Summary
 
@@ -443,3 +654,14 @@ printOutputs()
  本次實作的平台中，使用 2 台 Raspberry Pi 組成一個 Docker Swarm，run 6 個 containers，每個 container 扮演一個 device (neuron)。每個 neuron 都有自己專屬的 message queue，類似於 MQTT 中 "topic" 的作用。設定 neurons 之間的連結，其實就是在設定 publisher / subscriber 的對應關係，publisher / subscriber 的對應關係 可以是多對多。
 
  設定好 connections / weights / thresholds 之後，可以使用這 6 個 neurons (devices / containers)，組成一個 XOR網路，針對外接的 sensors 所感測到的環境狀態，依據 網路的pattern 決定最終的 output。
+
+### 參考資料
+[Action potential](https://en.wikipedia.org/wiki/Action_potential)  
+[Neural coding](https://en.wikipedia.org/wiki/Neural_coding)  
+[Artificial neuron](https://en.wikipedia.org/wiki/Artificial_neuron)  
+["All-or-none" principle](https://en.wikipedia.org/wiki/Action_potential#.22All-or-none.22_principle)  
+[Refractory period](https://en.wikipedia.org/wiki/Action_potential#Refractory_period)  
+- The absolute refractory period is largely responsible for the unidirectional propagation of action potentials along axons.[34] At any given moment, the patch of axon behind the actively spiking part is refractory, but the patch in front, not having been activated recently, is capable of being stimulated by the depolarization from the action potential.  
+
+
+
