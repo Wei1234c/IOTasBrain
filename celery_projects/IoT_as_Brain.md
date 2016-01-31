@@ -240,7 +240,6 @@ from IoT.neuron import *
 from time import sleep
 import pandas as pd
 from pandas import DataFrame
-# import itertools
 
 pd.options.display.max_colwidth = 400
 REFRACTORY_PERIOD = 0.1
@@ -263,11 +262,11 @@ def mergeLogs():
     for neuron in neurons:
         currentLog = getLog.apply_async(routing_key = neuron).get()
         logs += currentLog
-
+        
 #     logs = group([getLog.subtask(routing_key = neuron) for neuron in neurons]).apply_async().get()
             
-    df = DataFrame(list(logs), columns = ['Time', 'neuron', 'content']) 
-    df.set_index('Time', inplace = True)
+    df = DataFrame(list(logs), columns = ['time', 'neuron', 'message']) 
+    df.set_index('time', inplace = True)
     df.sort_index(inplace = True)
     
     return df
@@ -302,7 +301,7 @@ addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h3')
 
 
 
-    <AsyncResult: e9748069-5fc3-4c5c-83f8-89a08fb09d24>
+    <AsyncResult: af10b99c-3f57-4ba8-87cf-4c882a2ff518>
 
 
 
@@ -333,7 +332,7 @@ setWeight.apply_async(['neuron_h3', 1], routing_key = 'neuron_z')
 
 
 
-    <AsyncResult: c87a87d8-7552-4dcd-a5b8-c0a018d6af33>
+    <AsyncResult: f9178181-2220-4069-8265-2c553f86b84d>
 
 
 
@@ -357,16 +356,9 @@ setThreshold.apply_async([0.9], routing_key = 'neuron_z')
 
 
 
-    <AsyncResult: a2576999-63cb-44dc-9150-8f9f3ca5c2ac>
+    <AsyncResult: 11116ffa-64a0-41f5-9cf1-ac69e295c6e8>
 
 
-
-### 設定之後，各 neurons 的 config 狀態:
-
-
-```python
-# for neuron in neurons: printConfig(neuron)
-```
 
 ### 模擬 sensor input，然後查看各 neurons 的 output 狀態
 一個 neuron fire 之後，如果沒有持續的輸入可維持 fire 的狀態，則過 5 秒鐘之 neuron 的 output 一定為 0
@@ -388,10 +380,10 @@ mergeLogs()
     <tr style="text-align: right;">
       <th></th>
       <th>neuron</th>
-      <th>content</th>
+      <th>message</th>
     </tr>
     <tr>
-      <th>Time</th>
+      <th>time</th>
       <th></th>
       <th></th>
     </tr>
@@ -421,44 +413,59 @@ mergeLogs()
     <tr style="text-align: right;">
       <th></th>
       <th>neuron</th>
-      <th>content</th>
+      <th>message</th>
     </tr>
     <tr>
-      <th>Time</th>
+      <th>time</th>
       <th></th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <th>2016-01-31 01:01:54.794059</th>
+      <th>2016-01-31 12:48:29.172685</th>
       <td>neuron_x</td>
-      <td>neuron_x fired.</td>
+      <td>neuron_x fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 01:01:54.864476</th>
-      <td>neuron_h1</td>
-      <td>neuron_x is kicking neuron_h1.</td>
+      <th>2016-01-31 12:48:29.176460</th>
+      <td>neuron_x</td>
+      <td>Setting output of neuron_x to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 01:01:54.873239</th>
+      <th>2016-01-31 12:48:29.490504</th>
       <td>neuron_h2</td>
       <td>neuron_x is kicking neuron_h2.</td>
     </tr>
     <tr>
-      <th>2016-01-31 01:01:54.880962</th>
+      <th>2016-01-31 12:48:29.510054</th>
       <td>neuron_h1</td>
-      <td>neuron_h1 fired.</td>
+      <td>neuron_x is kicking neuron_h1.</td>
     </tr>
     <tr>
-      <th>2016-01-31 01:01:54.954445</th>
+      <th>2016-01-31 12:48:29.540505</th>
+      <td>neuron_h1</td>
+      <td>neuron_h1 fires.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:29.544483</th>
+      <td>neuron_h1</td>
+      <td>Setting output of neuron_h1 to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:29.874711</th>
       <td>neuron_z</td>
       <td>neuron_h1 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 01:01:54.981415</th>
+      <th>2016-01-31 12:48:29.896979</th>
       <td>neuron_z</td>
-      <td>neuron_z fired.</td>
+      <td>neuron_z fires.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:29.900123</th>
+      <td>neuron_z</td>
+      <td>Setting output of neuron_z to ACTION_POTENTIAL.</td>
     </tr>
   </tbody>
 </table>
@@ -484,44 +491,59 @@ mergeLogs()
     <tr style="text-align: right;">
       <th></th>
       <th>neuron</th>
-      <th>content</th>
+      <th>message</th>
     </tr>
     <tr>
-      <th>Time</th>
+      <th>time</th>
       <th></th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <th>2016-01-31 00:56:54.163785</th>
+      <th>2016-01-31 12:48:32.445278</th>
       <td>neuron_y</td>
-      <td>neuron_y fired.</td>
+      <td>neuron_y fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:56:54.215860</th>
-      <td>neuron_h3</td>
-      <td>neuron_y is kicking neuron_h3.</td>
+      <th>2016-01-31 12:48:32.448389</th>
+      <td>neuron_y</td>
+      <td>Setting output of neuron_y to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:56:54.255786</th>
+      <th>2016-01-31 12:48:32.749178</th>
       <td>neuron_h2</td>
       <td>neuron_y is kicking neuron_h2.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:56:54.259556</th>
+      <th>2016-01-31 12:48:32.761118</th>
       <td>neuron_h3</td>
-      <td>neuron_h3 fired.</td>
+      <td>neuron_y is kicking neuron_h3.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:56:54.321133</th>
+      <th>2016-01-31 12:48:32.778299</th>
+      <td>neuron_h3</td>
+      <td>neuron_h3 fires.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:32.790899</th>
+      <td>neuron_h3</td>
+      <td>Setting output of neuron_h3 to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:33.111365</th>
       <td>neuron_z</td>
       <td>neuron_h3 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:56:54.339361</th>
+      <th>2016-01-31 12:48:33.132369</th>
       <td>neuron_z</td>
-      <td>neuron_z fired.</td>
+      <td>neuron_z fires.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:33.135336</th>
+      <td>neuron_z</td>
+      <td>Setting output of neuron_z to ACTION_POTENTIAL.</td>
     </tr>
   </tbody>
 </table>
@@ -548,112 +570,162 @@ mergeLogs()
     <tr style="text-align: right;">
       <th></th>
       <th>neuron</th>
-      <th>content</th>
+      <th>message</th>
     </tr>
     <tr>
-      <th>Time</th>
+      <th>time</th>
       <th></th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <th>2016-01-31 00:57:00.022305</th>
+      <th>2016-01-31 12:48:35.634112</th>
       <td>neuron_x</td>
-      <td>neuron_x fired.</td>
+      <td>neuron_x fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.067683</th>
+      <th>2016-01-31 12:48:35.637497</th>
+      <td>neuron_x</td>
+      <td>Setting output of neuron_x to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:35.666284</th>
       <td>neuron_y</td>
-      <td>neuron_y fired.</td>
+      <td>neuron_y fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.084430</th>
-      <td>neuron_h1</td>
-      <td>neuron_x is kicking neuron_h1.</td>
+      <th>2016-01-31 12:48:35.670549</th>
+      <td>neuron_y</td>
+      <td>Setting output of neuron_y to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.106458</th>
-      <td>neuron_h1</td>
-      <td>neuron_h1 fired.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 00:57:00.110553</th>
+      <th>2016-01-31 12:48:35.724535</th>
       <td>neuron_h2</td>
       <td>neuron_x is kicking neuron_h2.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.157432</th>
+      <th>2016-01-31 12:48:35.762125</th>
+      <td>neuron_h1</td>
+      <td>neuron_x is kicking neuron_h1.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:35.778887</th>
+      <td>neuron_h1</td>
+      <td>neuron_h1 fires.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:35.782993</th>
+      <td>neuron_h1</td>
+      <td>Setting output of neuron_h1 to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:35.815139</th>
       <td>neuron_h3</td>
       <td>neuron_y is kicking neuron_h3.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.192154</th>
+      <th>2016-01-31 12:48:35.853999</th>
       <td>neuron_h3</td>
-      <td>neuron_h3 fired.</td>
+      <td>neuron_h3 fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.219668</th>
-      <td>neuron_z</td>
-      <td>neuron_h1 is kicking neuron_z.</td>
+      <th>2016-01-31 12:48:35.858438</th>
+      <td>neuron_h3</td>
+      <td>Setting output of neuron_h3 to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.238060</th>
+      <th>2016-01-31 12:48:35.876524</th>
       <td>neuron_h2</td>
       <td>neuron_y is kicking neuron_h2.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.266169</th>
+      <th>2016-01-31 12:48:35.886560</th>
       <td>neuron_z</td>
-      <td>neuron_z fired.</td>
+      <td>neuron_h1 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.277638</th>
+      <th>2016-01-31 12:48:35.906268</th>
       <td>neuron_h2</td>
-      <td>neuron_h2 fired.</td>
+      <td>neuron_h2 fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.364021</th>
+      <th>2016-01-31 12:48:35.906868</th>
+      <td>neuron_z</td>
+      <td>neuron_z fires.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:35.909801</th>
+      <td>neuron_h2</td>
+      <td>Setting output of neuron_h2 to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:35.909957</th>
+      <td>neuron_z</td>
+      <td>Setting output of neuron_z to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:35.991887</th>
       <td>neuron_z</td>
       <td>neuron_h3 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.385661</th>
+      <th>2016-01-31 12:48:36.013869</th>
       <td>neuron_z</td>
-      <td>neuron_z fired.</td>
+      <td>neuron_z is still in refractory-period.</td>
     </tr>
     <tr>
-      <th>2016-01-31 00:57:00.411075</th>
+      <th>2016-01-31 12:48:36.016584</th>
+      <td>neuron_z</td>
+      <td>neuron_z is still in refractory_period at action potential, then a neuron neuron_h3 kicks in, now sum_of_weighted_inputs &gt;= threshold.</td>
+    </tr>
+    <tr>
+      <th>2016-01-31 12:48:36.232859</th>
       <td>neuron_z</td>
       <td>neuron_h2 is kicking neuron_z.</td>
     </tr>
-    <tr>
-      <th>2016-01-31 00:57:00.417874</th>
-      <td>neuron_z</td>
-      <td>neuron_z is still in refractory_period.</td>
-    </tr>
   </tbody>
 </table>
 </div>
 
 
-
-
-```python
-# for neuron in reversed(neurons): printConfig(neuron)
-```
 
 ### [Flower](http://192.168.0.114:5555) 中顯示各 worker 處理的 messages 數量:
 
 ![各 neuron 的活動次數](https://github.com/Wei1234c/IOTasBrain/raw/master/celery_projects/jpgs/flower2.jpg "各 neuron 的活動次數")
 
+### 各 neurons 的 config 狀態:
+
+
+```python
+for neuron in reversed(neurons): printConfig(neuron)
+```
+
+    neuron_z config:
+     {'threshold': 0.9, 'weights': {'neuron_h1': 1, 'neuron_h3': 1, 'neuron_h2': -2}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 914035)}, 'inputs': {'neuron_h1': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 894960)}, 'neuron_h3': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 995146)}, 'neuron_h2': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 36, 240473)}}}
+    neuron_h3 config:
+     {'threshold': 0.9, 'weights': {'neuron_y': 1}, 'inputs': {'neuron_y': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 818875)}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 862184)}, 'connections': {'neuron_z'}}
+    neuron_h2 config:
+     {'connections': {'neuron_z'}, 'threshold': 1.9, 'inputs': {'neuron_y': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 887421)}, 'neuron_x': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 728010)}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 913084)}, 'weights': {'neuron_y': 1, 'neuron_x': 1}}
+    neuron_h1 config:
+     {'weights': {'neuron_x': 1}, 'threshold': 0.9, 'inputs': {'neuron_x': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 765764)}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 787075)}, 'connections': {'neuron_z'}}
+    neuron_y config:
+     {'inputs': {}, 'threshold': 0.9, 'weights': {'sensor_y_1': 1, 'sensor_y_2': 1}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 673384)}, 'connections': {'neuron_h3', 'neuron_h2'}}
+    neuron_x config:
+     {'threshold': 0.9, 'weights': {'sensor_x_1': 1, 'sensor_x_2': 1}, 'inputs': {}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 653248)}, 'connections': {'neuron_h1', 'neuron_h2'}}
+    
+
 ## Summary
 
- 這次實驗，主要是想驗證可以使用 Celery + Docker Swarm 快速的建構私有的 類似 Bluemix 的 IoT 平台，讓其上的 devices 共同組成一個分散式的協同運算系統，視整個 IoT(Internet of Things) 為一體。
+  這次實驗，主要是想驗證 可以使用 Celery + Docker Swarm 快速地建構私有的 類似 Bluemix 的 IoT 平台，讓其上的 devices 共同組成一個分散式的協同運算系統，視整個 IoT(Internet of Things) 為一體。  
+  
+  本次實作的平台中，使用 2 台 Raspberry Pi 組成一個 Docker Swarm，run 6 個 containers，每個 container 扮演一個 device，也可視為一個 neuron。設定 neurons 之間的連結，好比是在設定 publisher / subscriber 的對應關係，其對應關係 可以是多對多。  
+  
+  可以使用這 6 個 neurons (devices / containers)，在設定好 connections / weights / thresholds 之後，組成一個 XOR網路，針對外接的 sensors 所感測到的環境狀態，依據 網路的pattern 決定最終的 output。
 
- 本次實作的平台中，使用 2 台 Raspberry Pi 組成一個 Docker Swarm，run 6 個 containers，每個 container 扮演一個 device (neuron)。每個 neuron 都有自己專屬的 message queue，類似於 MQTT 中 "topic" 的作用。設定 neurons 之間的連結，其實就是在設定 publisher / subscriber 的對應關係，publisher / subscriber 的對應關係 可以是多對多。
+## 後記 (2016/01/31)
 
- 設定好 connections / weights / thresholds 之後，可以使用這 6 個 neurons (devices / containers)，組成一個 XOR網路，針對外接的 sensors 所感測到的環境狀態，依據 網路的pattern 決定最終的 output。
+  後來發現 XOR網路 可能不會存在於現實世界的大腦中，因為要實現XOR網路 就必須要求 各訊號都同時到達，這在真實的世界中不大可能發生，而且就算發生了，因為這種機制會要求 "等待"，對系統整體的運算效能會造成很大的損失，我不認為是一個好的運算機制，大自然應該不會這樣設計大腦。
 
 ### 參考資料
 [Action potential](https://en.wikipedia.org/wiki/Action_potential)  

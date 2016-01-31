@@ -48,7 +48,7 @@ def touchFiles():
 def emptyConfig():
     config = {}
     config['inputs'] = {}
-    config['output'] = {'value': RESTING_POTENTIAL, 'depolarized_time': datetime.datetime(1970,1,1), 'lasting': datetime.timedelta(0, REFRACTORY_PERIOD)}
+    config['output'] = {'value': RESTING_POTENTIAL, 'polarized_time': datetime.datetime(1970,1,1), 'lasting': datetime.timedelta(0, REFRACTORY_PERIOD)}
     setConfig(config)
     
     
@@ -82,9 +82,9 @@ def getLog():
     
 # @app.task  
 def log(message):
-    content = getLog()
-    content.append((datetime.datetime.now(), getHostname(), message))
-    setLog(content)
+    logs = getLog()
+    logs.append((datetime.datetime.now(), getHostname(), message))
+    setLog(logs)
     
     
 @app.task
@@ -161,7 +161,7 @@ def in_refractory_period():
     output = getConfig()['output'] 
     
     # 如果 output 還沒有超過有效期
-    return True if output['depolarized_time'] + output['lasting'] >= datetime.datetime.now() else False
+    return True if output['polarized_time'] + output['lasting'] >= datetime.datetime.now() else False
     
     
 # @app.task    
@@ -184,40 +184,85 @@ def sumInputsAndWeights():
 
 
 @app.task
-def getOutput():
-    return ACTION_POTENTIAL if in_refractory_period() else RESTING_POTENTIAL
+def setOutput(potential):
+    # 設定 output 為 potential
+    config = getConfig()
+    config['output']['value'] = potential
+    config['output']['polarized_time'] = datetime.datetime.now()
+    # config['output']['lasting'] = datetime.timedelta(0, REFRACTORY_PERIOD)}
+    setConfig(config)
     
 
 @app.task
-def kick(neuron_id): 
-    # 紀錄 input 的狀態
-    myName = getHostname()
-    log('{0} is kicking {1}.'.format(neuron_id, myName))
+def setOutputActive():
+    log('Setting output of {0} to ACTION_POTENTIAL.'.format(getHostname()))
+    setOutput(ACTION_POTENTIAL)
+
+
+@app.task
+def setOutputResting():
+    log('Setting output of {0} to RESTING_POTENTIAL.'.format(getHostname()))
+    setOutput(RESTING_POTENTIAL)
+    
+    
+@app.task
+def getOutput():
+    if in_refractory_period():
+        output = getConfig()['output'].get('value', RESTING_POTENTIAL)
+    else:
+        output = RESTING_POTENTIAL        
+    return output
+    
+    
+@app.task
+def receiveInput(neuron_id): 
+    # 紀錄 input 的狀態 
     config = getConfig()
     config['inputs'][neuron_id] = {'value': ACTION_POTENTIAL, 'kick_time': datetime.datetime.now(), 'lasting': datetime.timedelta(0, POLARIZATION_SECONDS)}
-    setConfig(config)    
-    
-    if not in_refractory_period():
-        # output 已經歸零        
-        if sumInputsAndWeights() >= getThreshold():
-            fire() 
-    else:
-        # output 尚未歸零
-        log('{0} is still in refractory_period.'.format(myName))
-        pass
- 
- 
-@app.task    
-def fire():    
-    # 設定 output 為 ACTION_POTENTIAL
-    config = getConfig()
-    config['output']['value'] = ACTION_POTENTIAL
-    config['output']['depolarized_time'] = datetime.datetime.now()
-    # config['output']['lasting'] = datetime.timedelta(0, REFRACTORY_PERIOD)}
     setConfig(config) 
     
+    
+@app.task
+def kick(neuron_id): 
     myName = getHostname()
-    log('{0} fired.'.format(myName))
+    log('{0} is kicking {1}.'.format(neuron_id, myName))     
+    
+    # 紀錄 input 的狀態
+    receiveInput(neuron_id)    
+    
+    sum_of_weighted_inputs = sumInputsAndWeights()
+    threshold = getThreshold()    
+    currentOutput = getOutput()
+    
+    if not in_refractory_period():
+        # refractory period 已經過了，需重新估算        
+        if sum_of_weighted_inputs >= threshold:
+            fire() 
+    else: 
+        # 還在 refractory period 期間 
+        log('{0} is still in refractory-period.'.format(myName))
+        if currentOutput == ACTION_POTENTIAL:
+            # 目前在 ACTION_POTENTIAL
+            if sum_of_weighted_inputs >= threshold:
+                log('{0} is still in refractory_period at action potential, then a neuron {1} kicks in, now sum_of_weighted_inputs >= threshold.'.format(myName, neuron_id))
+            else:                
+                log('{0} is still in refractory_period at action potential, then a neuron {1} kicks in, now sum_of_weighted_inputs < threshold.'.format(myName, neuron_id))
+                # setOutputResting()
+        else: 
+            # 目前在 RESTING_POTENTIAL
+            if sum_of_weighted_inputs >= threshold:
+                log('{0} is still in refractory_period at resting potential, then a neuron {1} kicks in, now sum_of_weighted_inputs >= threshold.'.format(myName, neuron_id))
+            else:                
+                log('{0} is still in refractory_period at resting potential, then a neuron {1} kicks in, now sum_of_weighted_inputs < threshold.'.format(myName, neuron_id))
+                # setOutputResting()
+                
+                
+@app.task    
+def fire():    
+    myName = getHostname()
+    log('{0} fires.'.format(myName))
+    setOutputActive()  
+    
     # kick 下游 neurons
     connections = getConnections()        
     group([kick.subtask((myName,), routing_key = connection) for connection in connections]).apply_async()
