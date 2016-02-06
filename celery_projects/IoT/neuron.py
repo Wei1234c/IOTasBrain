@@ -170,12 +170,13 @@ def sumInputsAndWeights():
     weights = config.get('weights', {})
     inputs = config.get('inputs', {})
     sum_of_weighted_inputs = 0
+    currentTime = datetime.datetime.now()
     
     # sum weighted inputs
     for neuron in inputs:
         input = inputs[neuron]        
         # 如果input還沒有超過有效期
-        input['value'] = ACTION_POTENTIAL if input['kick_time'] + input['lasting'] >= datetime.datetime.now() else RESTING_POTENTIAL        
+        input['value'] = input.get('value', ACTION_POTENTIAL) if input['kick_time'] + input['lasting'] >= currentTime else RESTING_POTENTIAL        
         sum_of_weighted_inputs += input['value'] * weights.get(neuron, INITIAL_WEIGHT)
         
     setConfig(config)
@@ -199,10 +200,10 @@ def setOutputActive():
     setOutput(ACTION_POTENTIAL)
 
 
-@app.task
-def setOutputResting():
-    log('Setting output of {0} to RESTING_POTENTIAL.'.format(getHostname()))
-    setOutput(RESTING_POTENTIAL)
+# @app.task
+# def setOutputResting():
+    # log('Setting output of {0} to RESTING_POTENTIAL.'.format(getHostname()))
+    # setOutput(RESTING_POTENTIAL)
     
     
 @app.task
@@ -216,9 +217,16 @@ def getOutput():
     
 @app.task
 def receiveInput(neuron_id): 
-    # 紀錄 input 的狀態 
-    config = getConfig()
-    config['inputs'][neuron_id] = {'value': ACTION_POTENTIAL, 'kick_time': datetime.datetime.now(), 'lasting': datetime.timedelta(0, POLARIZATION_SECONDS)}
+    # 紀錄 input 的狀態     
+    config = getConfig() 
+    inputs = config.get('inputs', {})  
+    input = inputs[neuron_id]
+    currentTime = datetime.datetime.now()
+    
+    remainingValue = input['value'] if input['kick_time'] + input['lasting'] >= currentTime else RESTING_POTENTIAL    
+    input['value'] = remainingValue + ACTION_POTENTIAL  # 同一個來源 累積的效果
+    input['kick_time'] = currentTime
+    input['lasting'] = datetime.timedelta(0, POLARIZATION_SECONDS)
     setConfig(config) 
     
     
