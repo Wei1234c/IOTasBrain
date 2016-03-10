@@ -220,10 +220,20 @@ def receiveInput(neuron_id):
     # 紀錄 input 的狀態     
     config = getConfig() 
     inputs = config.get('inputs', {})  
-    input = inputs[neuron_id]
+    input = inputs.get(neuron_id)
+    
+    # 收到 input 的時間
     currentTime = datetime.datetime.now()
     
-    remainingValue = input['value'] if input['kick_time'] + input['lasting'] >= currentTime else RESTING_POTENTIAL    
+    # 尚無紀錄，則 initialize
+    if input is None:
+        input = {}
+        input['value'] = RESTING_POTENTIAL
+        input['kick_time'] = currentTime
+        input['lasting'] = datetime.timedelta(0, POLARIZATION_SECONDS)
+        inputs[neuron_id] = input
+    
+    remainingValue = input['value'] if input['kick_time'] + input['lasting'] >= currentTime else RESTING_POTENTIAL  # 上一次 input 的殘餘值
     input['value'] = remainingValue + ACTION_POTENTIAL  # 同一個來源 累積的效果
     input['kick_time'] = currentTime
     input['lasting'] = datetime.timedelta(0, POLARIZATION_SECONDS)

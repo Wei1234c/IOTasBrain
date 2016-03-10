@@ -125,7 +125,7 @@ $
 
 
 ```python
-#### ./start_workers.sh
+# ./start_workers.sh
 
 PROJECT='IoT'  # project 名稱
 CONCURRENCY=1  # 每個 worker 可以有幾個 subprocesses
@@ -242,28 +242,34 @@ import pandas as pd
 from pandas import DataFrame
 
 pd.options.display.max_colwidth = 400
-REFRACTORY_PERIOD = 0.1
+REFRACTORY_PERIOD = 0.1   # 0.1 seconds
 ```
+
+#### Note:
+定義一個 neuron 行為的 Python code 放在 celery_projects/IoT/neuron.py，Celery 的 worker 被啟動時 會將之載入。  
+neuron.py 中以一個 pickle 檔案紀錄一個 neuron 的組成與任一時刻的狀態，包括有 connections、weights、inputs、output...
 
 
 ```python
+# 總共有 6 個 neurons，各代表一個 Docker container，被隨機佈署在 Docker Swarm 中的任一台 machine 上。
 neurons = ['neuron_x', 'neuron_y', 'neuron_h1', 'neuron_h2', 'neuron_h3', 'neuron_z'] 
 
+# print 出 一個 neuron 中的 Log
 def printConfig(neuron):
-    print('{0} config:\n {1}'.format(neuron, getConfig.apply_async(routing_key = neuron).get()))
+    print('{0:_^78}\n {1}\n'.format(neuron + " config:", getConfig.apply_async(routing_key = neuron).get()))
 
+# 清除所有 neurons 中的 logs    
 def emptyLogs():
     for neuron in neurons:
         emptyLog.apply_async(routing_key = neuron)
 
+# 彙整logs。將所有 neurons 中的 logs merge 在一起，成為一個 Pandas.DataFrame
 def mergeLogs():
     logs = []
     
     for neuron in neurons:
         currentLog = getLog.apply_async(routing_key = neuron).get()
-        logs += currentLog
-        
-#     logs = group([getLog.subtask(routing_key = neuron) for neuron in neurons]).apply_async().get()
+        logs += currentLog 
             
     df = DataFrame(list(logs), columns = ['time', 'neuron', 'message']) 
     df.set_index('time', inplace = True)
@@ -276,6 +282,7 @@ def mergeLogs():
 
 
 ```python
+# 清除所有 neurons 中的 logs  
 emptyLogs()
 ```
 
@@ -286,14 +293,14 @@ emptyLogs()
 ```python
 # input layer fan out
 # neuron x
-addConnection.apply_async(['neuron_h1'], routing_key = 'neuron_x')
+addConnection.apply_async(['neuron_h1'], routing_key = 'neuron_x')  # 增設 neuron_x -> neuron_h1 的 connection
 addConnection.apply_async(['neuron_h2'], routing_key = 'neuron_x')
 # neuron y
-addConnection.apply_async(['neuron_h2'], routing_key = 'neuron_y')
+addConnection.apply_async(['neuron_h2'], routing_key = 'neuron_y')  # 增設 neuron_y -> neuron_h2 的 connection
 addConnection.apply_async(['neuron_h3'], routing_key = 'neuron_y')
 
 # hidden layer fan out
-addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h1')
+addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h1')  # 增設 neuron_h1 -> neuron_z 的 connection
 addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h2')
 addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h3')
 ```
@@ -301,7 +308,7 @@ addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h3')
 
 
 
-    <AsyncResult: af10b99c-3f57-4ba8-87cf-4c882a2ff518>
+    <AsyncResult: 2c476123-b85e-4a50-8b31-56ab64cb0758>
 
 
 
@@ -309,30 +316,22 @@ addConnection.apply_async(['neuron_z'], routing_key = 'neuron_h3')
 
 
 ```python
-# input layer 
-# neuron x
-setWeight.apply_async(['sensor_x_1', 1], routing_key = 'neuron_x')
-setWeight.apply_async(['sensor_x_2', 1], routing_key = 'neuron_x')
-# neuron y
-setWeight.apply_async(['sensor_y_1', 1], routing_key = 'neuron_y')
-setWeight.apply_async(['sensor_y_2', 1], routing_key = 'neuron_y')
-
 # hidden layer
-setWeight.apply_async(['neuron_x', 1], routing_key = 'neuron_h1')
+setWeight.apply_async(['neuron_x', 1], routing_key = 'neuron_h1')  # 設定 neuron_x -> neuron_h1 的 weight = 1
 setWeight.apply_async(['neuron_x', 1], routing_key = 'neuron_h2')
-setWeight.apply_async(['neuron_y', 1], routing_key = 'neuron_h2')
+setWeight.apply_async(['neuron_y', 1], routing_key = 'neuron_h2')  # 設定 neuron_y -> neuron_h2 的 weight = 1
 setWeight.apply_async(['neuron_y', 1], routing_key = 'neuron_h3')
 
 # output layer
 setWeight.apply_async(['neuron_h1', 1], routing_key = 'neuron_z')
-setWeight.apply_async(['neuron_h2', -2], routing_key = 'neuron_z')
+setWeight.apply_async(['neuron_h2', -2], routing_key = 'neuron_z')  # 設定 neuron_h2 -> neuron_z 的 weight = -2 (inhibitory)
 setWeight.apply_async(['neuron_h3', 1], routing_key = 'neuron_z') 
 ```
 
 
 
 
-    <AsyncResult: f9178181-2220-4069-8265-2c553f86b84d>
+    <AsyncResult: ca9824e0-05af-4b55-bf5e-3d0b097388ed>
 
 
 
@@ -341,22 +340,22 @@ setWeight.apply_async(['neuron_h3', 1], routing_key = 'neuron_z')
 
 ```python
 # input layer 
-setThreshold.apply_async([0.9], routing_key = 'neuron_x') 
+setThreshold.apply_async([0.9], routing_key = 'neuron_x')  # 設定 neuron_x 的 threshold = 0.9
 setThreshold.apply_async([0.9], routing_key = 'neuron_y') 
 
 # hidden layer
-setThreshold.apply_async([0.9], routing_key = 'neuron_h1')
-setThreshold.apply_async([1.9], routing_key = 'neuron_h2')
+setThreshold.apply_async([0.9], routing_key = 'neuron_h1') 
+setThreshold.apply_async([1.9], routing_key = 'neuron_h2')  # 設定 neuron_h2 的 threshold = 1.9
 setThreshold.apply_async([0.9], routing_key = 'neuron_h3')
 
 # output layer
-setThreshold.apply_async([0.9], routing_key = 'neuron_z') 
+setThreshold.apply_async([0.9], routing_key = 'neuron_z')  # 設定 neuron_z 的 threshold = 0.9
 ```
 
 
 
 
-    <AsyncResult: 11116ffa-64a0-41f5-9cf1-ac69e295c6e8>
+    <AsyncResult: 9f2e95ef-72a9-4d10-81a6-9ff41aed1b2d>
 
 
 
@@ -366,9 +365,9 @@ setThreshold.apply_async([0.9], routing_key = 'neuron_z')
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-emptyLogs()
+emptyLogs()  # 清除 logs
 sleep(REFRACTORY_PERIOD)  # 等電位歸零 
-mergeLogs()
+mergeLogs()  # 彙整 logs
 ```
 
 
@@ -398,10 +397,10 @@ mergeLogs()
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-emptyLogs()
+emptyLogs()  # 清除 logs
 sleep(REFRACTORY_PERIOD)  # 等電位歸零
 fire.apply_async(routing_key = 'neuron_x') # force neuron x output 1 and fire.
-mergeLogs()
+mergeLogs()  # 彙整 logs
 ```
 
 
@@ -423,47 +422,47 @@ mergeLogs()
   </thead>
   <tbody>
     <tr>
-      <th>2016-01-31 12:48:29.172685</th>
+      <th>2016-03-10 20:51:18.489509</th>
       <td>neuron_x</td>
       <td>neuron_x fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:29.176460</th>
+      <th>2016-03-10 20:51:18.493309</th>
       <td>neuron_x</td>
       <td>Setting output of neuron_x to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:29.490504</th>
-      <td>neuron_h2</td>
-      <td>neuron_x is kicking neuron_h2.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:29.510054</th>
+      <th>2016-03-10 20:51:18.559939</th>
       <td>neuron_h1</td>
       <td>neuron_x is kicking neuron_h1.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:29.540505</th>
+      <th>2016-03-10 20:51:18.581558</th>
+      <td>neuron_h2</td>
+      <td>neuron_x is kicking neuron_h2.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:18.587120</th>
       <td>neuron_h1</td>
       <td>neuron_h1 fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:29.544483</th>
+      <th>2016-03-10 20:51:18.595436</th>
       <td>neuron_h1</td>
       <td>Setting output of neuron_h1 to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:29.874711</th>
+      <th>2016-03-10 20:51:18.654499</th>
       <td>neuron_z</td>
       <td>neuron_h1 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:29.896979</th>
+      <th>2016-03-10 20:51:18.689138</th>
       <td>neuron_z</td>
       <td>neuron_z fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:29.900123</th>
+      <th>2016-03-10 20:51:18.692448</th>
       <td>neuron_z</td>
       <td>Setting output of neuron_z to ACTION_POTENTIAL.</td>
     </tr>
@@ -476,10 +475,10 @@ mergeLogs()
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-emptyLogs()
+emptyLogs()  # 清除 logs
 sleep(REFRACTORY_PERIOD)  # 等電位歸零
 fire.apply_async(routing_key = 'neuron_y') # force neuron y output 1 and fire.
-mergeLogs()
+mergeLogs()  # 彙整 logs
 ```
 
 
@@ -501,47 +500,47 @@ mergeLogs()
   </thead>
   <tbody>
     <tr>
-      <th>2016-01-31 12:48:32.445278</th>
+      <th>2016-03-10 20:51:21.721563</th>
       <td>neuron_y</td>
       <td>neuron_y fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:32.448389</th>
+      <th>2016-03-10 20:51:21.726665</th>
       <td>neuron_y</td>
       <td>Setting output of neuron_y to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:32.749178</th>
-      <td>neuron_h2</td>
-      <td>neuron_y is kicking neuron_h2.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:32.761118</th>
+      <th>2016-03-10 20:51:21.796071</th>
       <td>neuron_h3</td>
       <td>neuron_y is kicking neuron_h3.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:32.778299</th>
+      <th>2016-03-10 20:51:21.818246</th>
       <td>neuron_h3</td>
       <td>neuron_h3 fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:32.790899</th>
+      <th>2016-03-10 20:51:21.822734</th>
       <td>neuron_h3</td>
       <td>Setting output of neuron_h3 to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:33.111365</th>
+      <th>2016-03-10 20:51:21.858226</th>
+      <td>neuron_h2</td>
+      <td>neuron_y is kicking neuron_h2.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:21.899541</th>
       <td>neuron_z</td>
       <td>neuron_h3 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:33.132369</th>
+      <th>2016-03-10 20:51:21.922727</th>
       <td>neuron_z</td>
       <td>neuron_z fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:33.135336</th>
+      <th>2016-03-10 20:51:21.927111</th>
       <td>neuron_z</td>
       <td>Setting output of neuron_z to ACTION_POTENTIAL.</td>
     </tr>
@@ -554,11 +553,11 @@ mergeLogs()
 
 ```python
 ### 模擬 sensor input，強迫 neuron x 或 y ouput 1
-emptyLogs()
+emptyLogs()  # 清除 logs
 sleep(REFRACTORY_PERIOD)  # 等電位歸零
 fire.apply_async(routing_key = 'neuron_x') # force neuron x output 1 and fire.
 fire.apply_async(routing_key = 'neuron_y') # force neuron y output 1 and fire.
-mergeLogs()
+mergeLogs()  # 彙整 logs
 ```
 
 
@@ -580,107 +579,107 @@ mergeLogs()
   </thead>
   <tbody>
     <tr>
-      <th>2016-01-31 12:48:35.634112</th>
+      <th>2016-03-10 20:51:25.524156</th>
       <td>neuron_x</td>
       <td>neuron_x fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.637497</th>
+      <th>2016-03-10 20:51:25.543150</th>
       <td>neuron_x</td>
       <td>Setting output of neuron_x to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.666284</th>
+      <th>2016-03-10 20:51:25.557295</th>
       <td>neuron_y</td>
       <td>neuron_y fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.670549</th>
+      <th>2016-03-10 20:51:25.561307</th>
       <td>neuron_y</td>
       <td>Setting output of neuron_y to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.724535</th>
-      <td>neuron_h2</td>
-      <td>neuron_x is kicking neuron_h2.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:35.762125</th>
-      <td>neuron_h1</td>
-      <td>neuron_x is kicking neuron_h1.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:35.778887</th>
-      <td>neuron_h1</td>
-      <td>neuron_h1 fires.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:35.782993</th>
-      <td>neuron_h1</td>
-      <td>Setting output of neuron_h1 to ACTION_POTENTIAL.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:35.815139</th>
+      <th>2016-03-10 20:51:25.620065</th>
       <td>neuron_h3</td>
       <td>neuron_y is kicking neuron_h3.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.853999</th>
+      <th>2016-03-10 20:51:25.632281</th>
+      <td>neuron_h1</td>
+      <td>neuron_x is kicking neuron_h1.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:25.649561</th>
+      <td>neuron_h1</td>
+      <td>neuron_h1 fires.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:25.649841</th>
       <td>neuron_h3</td>
       <td>neuron_h3 fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.858438</th>
+      <th>2016-03-10 20:51:25.653656</th>
+      <td>neuron_h1</td>
+      <td>Setting output of neuron_h1 to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:25.657057</th>
       <td>neuron_h3</td>
       <td>Setting output of neuron_h3 to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.876524</th>
+      <th>2016-03-10 20:51:25.689440</th>
       <td>neuron_h2</td>
-      <td>neuron_y is kicking neuron_h2.</td>
+      <td>neuron_x is kicking neuron_h2.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.886560</th>
+      <th>2016-03-10 20:51:25.759928</th>
       <td>neuron_z</td>
       <td>neuron_h1 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.906268</th>
+      <th>2016-03-10 20:51:25.787273</th>
+      <td>neuron_z</td>
+      <td>neuron_z fires.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:25.791270</th>
+      <td>neuron_z</td>
+      <td>Setting output of neuron_z to ACTION_POTENTIAL.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:25.813897</th>
+      <td>neuron_h2</td>
+      <td>neuron_y is kicking neuron_h2.</td>
+    </tr>
+    <tr>
+      <th>2016-03-10 20:51:25.835654</th>
       <td>neuron_h2</td>
       <td>neuron_h2 fires.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.906868</th>
-      <td>neuron_z</td>
-      <td>neuron_z fires.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:35.909801</th>
+      <th>2016-03-10 20:51:25.842069</th>
       <td>neuron_h2</td>
       <td>Setting output of neuron_h2 to ACTION_POTENTIAL.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:35.909957</th>
-      <td>neuron_z</td>
-      <td>Setting output of neuron_z to ACTION_POTENTIAL.</td>
-    </tr>
-    <tr>
-      <th>2016-01-31 12:48:35.991887</th>
+      <th>2016-03-10 20:51:25.869606</th>
       <td>neuron_z</td>
       <td>neuron_h3 is kicking neuron_z.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:36.013869</th>
+      <th>2016-03-10 20:51:25.892445</th>
       <td>neuron_z</td>
       <td>neuron_z is still in refractory-period.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:36.016584</th>
+      <th>2016-03-10 20:51:25.895733</th>
       <td>neuron_z</td>
       <td>neuron_z is still in refractory_period at action potential, then a neuron neuron_h3 kicks in, now sum_of_weighted_inputs &gt;= threshold.</td>
     </tr>
     <tr>
-      <th>2016-01-31 12:48:36.232859</th>
+      <th>2016-03-10 20:51:25.943689</th>
       <td>neuron_z</td>
       <td>neuron_h2 is kicking neuron_z.</td>
     </tr>
@@ -701,18 +700,24 @@ mergeLogs()
 for neuron in reversed(neurons): printConfig(neuron)
 ```
 
-    neuron_z config:
-     {'threshold': 0.9, 'weights': {'neuron_h1': 1, 'neuron_h3': 1, 'neuron_h2': -2}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 914035)}, 'inputs': {'neuron_h1': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 894960)}, 'neuron_h3': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 995146)}, 'neuron_h2': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 36, 240473)}}}
-    neuron_h3 config:
-     {'threshold': 0.9, 'weights': {'neuron_y': 1}, 'inputs': {'neuron_y': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 818875)}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 862184)}, 'connections': {'neuron_z'}}
-    neuron_h2 config:
-     {'connections': {'neuron_z'}, 'threshold': 1.9, 'inputs': {'neuron_y': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 887421)}, 'neuron_x': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 728010)}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 913084)}, 'weights': {'neuron_y': 1, 'neuron_x': 1}}
-    neuron_h1 config:
-     {'weights': {'neuron_x': 1}, 'threshold': 0.9, 'inputs': {'neuron_x': {'lasting': datetime.timedelta(0, 0, 500000), 'value': 1, 'kick_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 765764)}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 787075)}, 'connections': {'neuron_z'}}
-    neuron_y config:
-     {'inputs': {}, 'threshold': 0.9, 'weights': {'sensor_y_1': 1, 'sensor_y_2': 1}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 673384)}, 'connections': {'neuron_h3', 'neuron_h2'}}
-    neuron_x config:
-     {'threshold': 0.9, 'weights': {'sensor_x_1': 1, 'sensor_x_2': 1}, 'inputs': {}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'value': 1, 'polarized_time': datetime.datetime(2016, 1, 31, 12, 48, 35, 653248)}, 'connections': {'neuron_h1', 'neuron_h2'}}
+    _______________________________neuron_z config:_______________________________
+     {'inputs': {'neuron_h1': {'lasting': datetime.timedelta(0, 0, 500000), 'kick_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 763889), 'value': 1}, 'neuron_h2': {'lasting': datetime.timedelta(0, 0, 500000), 'kick_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 946926), 'value': 1}, 'neuron_h3': {'lasting': datetime.timedelta(0, 0, 500000), 'kick_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 873372), 'value': 1}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'polarized_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 803324), 'value': 1}, 'threshold': 0.9, 'weights': {'neuron_h1': 1, 'neuron_h3': 1, 'neuron_h2': -2}}
+    
+    ______________________________neuron_h3 config:_______________________________
+     {'inputs': {'neuron_y': {'lasting': datetime.timedelta(0, 0, 500000), 'kick_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 628021), 'value': 1}}, 'threshold': 0.9, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'polarized_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 660253), 'value': 1}, 'connections': {'neuron_z'}, 'weights': {'neuron_y': 1}}
+    
+    ______________________________neuron_h2 config:_______________________________
+     {'inputs': {'neuron_x': {'lasting': datetime.timedelta(0, 0, 500000), 'kick_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 693412), 'value': 1}, 'neuron_y': {'lasting': datetime.timedelta(0, 0, 500000), 'kick_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 817076), 'value': 1}}, 'threshold': 1.9, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'polarized_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 845780), 'value': 1}, 'connections': {'neuron_z'}, 'weights': {'neuron_x': 1, 'neuron_y': 1}}
+    
+    ______________________________neuron_h1 config:_______________________________
+     {'inputs': {'neuron_x': {'lasting': datetime.timedelta(0, 0, 500000), 'kick_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 635170), 'value': 1}}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'polarized_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 657518), 'value': 1}, 'weights': {'neuron_x': 1}, 'threshold': 0.9, 'connections': {'neuron_z'}}
+    
+    _______________________________neuron_y config:_______________________________
+     {'inputs': {}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'polarized_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 565365), 'value': 1}, 'connections': {'neuron_h2', 'neuron_h3'}, 'threshold': 0.9}
+    
+    _______________________________neuron_x config:_______________________________
+     {'inputs': {}, 'output': {'lasting': datetime.timedelta(0, 0, 100000), 'polarized_time': datetime.datetime(2016, 3, 10, 20, 51, 25, 547371), 'value': 1}, 'connections': {'neuron_h1', 'neuron_h2'}, 'threshold': 0.9}
+    
     
 
 ## Summary
